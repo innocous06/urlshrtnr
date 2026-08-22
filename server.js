@@ -116,6 +116,12 @@ return res.status(401).json({ error: 'Unauthorized. 6-digit passcode required.' 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Service Healthcheck
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime(), timestamp: Date.now() });
+});
+
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.get('/', (req, res) => {
 res.sendFile(path.join(__dirname, 'public', 'index.html'));
