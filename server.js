@@ -296,8 +296,18 @@ redirectHtml = redirectHtml
 .replace(/{{NOTE}}/g, safeNote)
 .replace(/{{COUNTDOWN}}/g, String(DEFAULT_COUNTDOWN));
 res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
 return res.send(redirectHtml);
 });
 app.listen(PORT, () => {
 console.log(`URL Redirector server running on port ${PORT}`);
 });
+// Graceful database shutdown on container / process exit
+const handleGracefulShutdown = () => {
+  if (useNativeSqlite && db) {
+    try { db.close(); } catch (e) {}
+  }
+  process.exit(0);
+};
+process.on('SIGINT', handleGracefulShutdown);
+process.on('SIGTERM', handleGracefulShutdown);
