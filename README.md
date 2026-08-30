@@ -39,6 +39,16 @@ cp .env.example .env
 npm start
 ```
 
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | Port for the Express HTTP server |
+| `BASE_URL` | `https://url.600266.xyz` | Canonical base domain for shortened URLs |
+| `ADMIN_PASSCODE` | `600266` | Passcode for administrative dashboard |
+| `SESSION_SECRET` | - | Secret key used for signing session cookies |
+| `DEFAULT_COUNTDOWN` | `3` | Interstitial redirect countdown delay in seconds |
+
 ## License
 
 Released under the [MIT License](LICENSE).
