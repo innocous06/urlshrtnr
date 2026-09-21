@@ -89,6 +89,15 @@ function getInterstitialHtml(targetUrl, note, countdown, code) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="${cd};url=${safeTarget}">
+  <!-- OpenGraph and Social Crawler Unfurl Meta Tags -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Redirecting to ${escapeHtml(domain)}">
+  <meta property="og:description" content="${safeNote ? safeNote : `Shortlink redirecting to ${escapeHtml(domain)}`}">
+  <meta property="og:url" content="${safeTarget}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Redirecting to ${escapeHtml(domain)}">
+  <meta name="twitter:description" content="${safeNote ? safeNote : `Shortlink redirecting to ${escapeHtml(domain)}`}">
   <title>Redirecting to ${escapeHtml(domain)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1710,7 +1719,7 @@ export default {
 </html>`, 410);
     }
 
-    // Increment click count asynchronously
+    // Increment click count asynchronously with rate-limit and fault tolerance
     if (ctx && typeof ctx.waitUntil === 'function') {
       ctx.waitUntil((async () => {
         try {
@@ -1719,14 +1728,17 @@ export default {
         } catch (err) {}
       })());
     } else {
-      linkData.click_count = (linkData.click_count || 0) + 1;
-      await env.URL_KV.put(`link:${shortCode}`, JSON.stringify(linkData));
+      try {
+        linkData.click_count = (linkData.click_count || 0) + 1;
+        await env.URL_KV.put(`link:${shortCode}`, JSON.stringify(linkData));
+      } catch (err) {}
     }
 
     if (linkData.redirect_type === 'direct') {
       return Response.redirect(linkData.target_url, 302);
     }
 
-    return htmlResponse(getInterstitialHtml(linkData.target_url, linkData.note, countdown, shortCode));
+    const finalCd = Math.max(1, parseInt(linkData.countdown || countdown, 10) || 5);
+    return htmlResponse(getInterstitialHtml(linkData.target_url, linkData.note, finalCd, shortCode));
   }
 };
