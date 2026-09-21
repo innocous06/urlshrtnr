@@ -7,6 +7,37 @@
 const ADMIN_DEFAULT_PASSCODE = "600266";
 const DEFAULT_CD = 5;
 
+const loginAttempts = new Map();
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const data = loginAttempts.get(ip);
+  if (!data) return { allowed: true, remaining: 5 };
+  if (now - data.firstAttempt > 900000) {
+    loginAttempts.delete(ip);
+    return { allowed: true, remaining: 5 };
+  }
+  if (data.count >= 5) {
+    return { allowed: false, remaining: 0 };
+  }
+  return { allowed: true, remaining: 5 - data.count };
+}
+
+function recordFailedLogin(ip) {
+  const now = Date.now();
+  const data = loginAttempts.get(ip) || { count: 0, firstAttempt: now };
+  if (now - data.firstAttempt > 900000) {
+    data.count = 0;
+    data.firstAttempt = now;
+  }
+  data.count++;
+  loginAttempts.set(ip, data);
+}
+
+function recordSuccessLogin(ip) {
+  loginAttempts.delete(ip);
+}
+
 function generateRandomCode(length) {
   const chars = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
   const array = new Uint8Array(length);
@@ -1458,12 +1489,23 @@ export default {
 
     // Auth Verify & Login
     if ((pathName === '/api/auth/verify' || pathName === '/api/auth/login') && request.method === 'POST') {
+      const clientIp = request.headers.get('cf-connecting-ip') || 
+                       (request.headers.get('x-forwarded-for') ? request.headers.get('x-forwarded-for').split(',')[0].trim() : null) || 
+                       'client';
+      const rateCheck = checkLoginRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        return jsonResponse({ success: false, error: 'Too many failed login attempts. Rate limited for 15 mins.' }, 429);
+      }
+
       try {
         const body = await request.json();
         const inputPass = body.passcode || body.pin || body.password;
         if (!inputPass || String(inputPass).trim() !== String(passcode).trim()) {
-          return jsonResponse({ success: false, error: 'Invalid 6-digit passcode' }, 401);
+          recordFailedLogin(clientIp);
+          const rem = checkLoginRateLimit(clientIp).remaining;
+          return jsonResponse({ success: false, error: `Invalid 6-digit passcode (${rem} attempts left)` }, 401);
         }
+        recordSuccessLogin(clientIp);
         const token = await getAuthToken(passcode, env.SECRET);
         return jsonResponse({ success: true, token }, 200, {
           'Set-Cookie': `admin_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
